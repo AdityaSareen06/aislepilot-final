@@ -1,14 +1,14 @@
 
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { AppHeader } from '@/components/app-header';
 import { CategorizedDisplay } from '@/components/categorized-display';
 import type { CategorizeItemsOutput } from '@/ai/flows/categorize-items';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, MapPin, Loader2, ScanLine, ShoppingCart, Plus, Minus } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ArrowLeft, MapPin, Loader2, ScanLine, ShoppingCart, Plus, Minus, CreditCard } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { LOCAL_STORAGE_KEYS } from '@/lib/constants';
 import {
@@ -17,8 +17,10 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
+import { useToast } from '@/hooks/use-toast';
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+
 
 const ITEM_PRICE_RS = 10;
 
@@ -28,6 +30,9 @@ export default function MapPage() {
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [currentYear, setCurrentYear] = useState<number | null>(null);
+  const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const { toast } = useToast();
 
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
@@ -65,13 +70,18 @@ export default function MapPage() {
 
     } catch (storageAccessError) {
       console.error("Error accessing localStorage on map page (read operations):", storageAccessError);
+      toast({
+        variant: "destructive",
+        title: "Storage Error",
+        description: "Could not load saved data. Your list might not persist.",
+      });
     } finally {
-      setCategorizedList(listFromStorage); // Set state after try-catch-finally structure
+      setCategorizedList(listFromStorage); 
       setCheckedItems(checksFromStorage);
       setItemQuantities(quantitiesFromStorage);
-      setIsLoading(false); // Ensure isLoading is set to false
+      setIsLoading(false); 
     }
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (!isLoading) { 
@@ -79,9 +89,14 @@ export default function MapPage() {
         localStorage.setItem(LOCAL_STORAGE_KEYS.CHECKED_ITEMS, JSON.stringify(checkedItems));
       } catch (storageAccessError) {
         console.error("Error saving checked items to localStorage on map page:", storageAccessError);
+         toast({
+            variant: "destructive",
+            title: "Storage Error",
+            description: "Could not save your checked items.",
+          });
       }
     }
-  }, [checkedItems, isLoading]);
+  }, [checkedItems, isLoading, toast]);
 
   useEffect(() => {
     if (!isLoading) {
@@ -89,9 +104,42 @@ export default function MapPage() {
         localStorage.setItem(LOCAL_STORAGE_KEYS.ITEM_QUANTITIES, JSON.stringify(itemQuantities));
       } catch (storageAccessError) {
         console.error("Error saving item quantities to localStorage on map page:", storageAccessError);
+        toast({
+            variant: "destructive",
+            title: "Storage Error",
+            description: "Could not save item quantities.",
+        });
       }
     }
-  }, [itemQuantities, isLoading]);
+  }, [itemQuantities, isLoading, toast]);
+
+  const requestCameraPermission = async () => {
+    if (typeof navigator !== "undefined" && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        setHasCameraPermission(true);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      } catch (error) {
+        console.error('Error accessing camera:', error);
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Access Denied',
+          description: 'Please enable camera permissions in your browser settings to use the scanner.',
+        });
+      }
+    } else {
+        setHasCameraPermission(false);
+        toast({
+          variant: 'destructive',
+          title: 'Camera Not Supported',
+          description: 'Your browser does not support camera access for scanning.',
+        });
+    }
+  };
+
 
   const handleItemToggle = (itemName: string, _aisleName: string) => {
     setCheckedItems((prevChecked) => {
@@ -152,20 +200,27 @@ export default function MapPage() {
     }, 0);
   };
 
+  const backButtonElement = (
+    <Link href="/plan" passHref>
+      <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md transition-shadow">
+        <ArrowLeft className="mr-2 h-4 w-4" />
+        Back
+      </Button>
+    </Link>
+  );
 
   if (isLoading && !categorizedList) {
     return (
       <>
         <main className="flex-grow container mx-auto px-4 md:px-6 py-8 flex flex-col items-center justify-center">
-          <div className="mb-6 w-full max-w-2xl mx-auto"> 
+          <div className="mb-6 w-full max-w-2xl mx-auto self-start"> 
             <Link href="/plan" passHref>
               <Button variant="outline" className="shadow-sm hover:shadow-md transition-shadow">
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to Grocery Plan
+                Back
               </Button>
             </Link>
           </div>
-          <AppHeader />
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4 mt-8" />
           <p className="text-muted-foreground">Loading map and checklist...</p>
         </main>
@@ -178,24 +233,15 @@ export default function MapPage() {
 
   return (
     <>
-      <main className="flex-grow container mx-auto px-4 md:px-6 py-8">
-        <div className="mb-6">
-          <Link href="/plan" passHref>
-            <Button variant="outline" className="shadow-sm hover:shadow-md transition-shadow">
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to Grocery Plan
-            </Button>
-          </Link>
-        </div>
+      <main className="flex-grow container mx-auto px-4 md:px-6 pt-8">
         
-        <AppHeader />
-        
-        <div className="sticky top-0 z-20 bg-background pb-2 pt-1 shadow-md">
+        <div className="sticky top-0 z-20 bg-background py-2 shadow-md -mx-4 md:-mx-6 px-4 md:px-6">
           <CategorizedDisplay
             categorizedList={categorizedList}
             checkedItems={checkedItems}
             onItemToggle={handleItemToggle}
             displayMode="carousel"
+            backButton={backButtonElement}
           />
         </div>
         
@@ -218,42 +264,64 @@ export default function MapPage() {
             />
           </div>
           <p className="text-xs text-muted-foreground mt-2 text-center">Placeholder store map. Actual layout may vary.</p>
-          
-          <div className="mt-6 text-center">
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button variant="secondary" size="lg" className="shadow-md hover:shadow-lg transition-shadow">
-                  <ScanLine className="mr-2 h-5 w-5" />
-                  Scan Barcode
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-[425px]">
-                <DialogHeader>
-                  <DialogTitle>Barcode Scanner</DialogTitle>
-                  <DialogDescription>
-                    Point your camera at a barcode to scan it.
-                  </DialogDescription>
-                </DialogHeader>
-                <div className="py-4 text-center">
-                  <p className="text-muted-foreground">
-                    (Barcode scanning functionality coming soon!)
-                  </p>
-                  <div className="mt-4 flex justify-center">
-                    <ScanLine className="h-24 w-24 text-primary/50" />
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
         </section>
 
         <Separator className="my-8" />
 
+        <Card className="mb-8 p-4 sm:p-6 shadow-lg">
+          <CardContent className="p-0">
+            <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex items-center">
+                <CreditCard className="mr-3 h-7 w-7 text-primary" />
+                <div>
+                  <p className="text-sm text-muted-foreground">Current Cart Total</p>
+                  <p className="text-2xl font-semibold font-headline text-primary">
+                    Rs {calculateTotalPrice().toFixed(2)}
+                  </p>
+                </div>
+              </div>
+              <Dialog onOpenChange={(open) => { if (open) requestCameraPermission(); else if (videoRef.current && videoRef.current.srcObject) { const stream = videoRef.current.srcObject as MediaStream; stream.getTracks().forEach(track => track.stop()); videoRef.current.srcObject = null; setHasCameraPermission(null); } }}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md transition-shadow w-full sm:w-auto">
+                    <ScanLine className="mr-2 h-4 w-4" />
+                    Scan Barcode
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="sm:max-w-[425px]">
+                  <DialogHeader>
+                    <DialogTitle>Barcode Scanner</DialogTitle>
+                    <DialogDescription>
+                      Point your camera at a barcode to scan it.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
+                    {hasCameraPermission === false && (
+                      <Alert variant="destructive" className="mt-4">
+                        <AlertTitle>Camera Access Denied</AlertTitle>
+                        <AlertDescription>
+                          Please enable camera permissions in your browser settings to use the scanner. You might need to refresh the page after enabling.
+                        </AlertDescription>
+                      </Alert>
+                    )}
+                    {hasCameraPermission === null && <p className="text-muted-foreground text-sm text-center mt-2">Requesting camera access...</p>}
+                  </div>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </CardContent>
+        </Card>
+        
+        <Separator className="my-8" />
+
         <section className="mb-8 p-4 sm:p-6 border bg-card rounded-lg shadow-lg">
-          <h2 className="text-xl sm:text-2xl font-semibold font-headline mb-4 flex items-center">
-            <ShoppingCart className="mr-2 h-6 w-6 text-primary" />
-            Shopping Cart
-          </h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl sm:text-2xl font-semibold font-headline flex items-center">
+              <ShoppingCart className="mr-2 h-6 w-6 text-primary" />
+              Shopping Cart Items
+            </h2>
+          </div>
+
           {completedItems.length > 0 ? (
             <>
               <ul className="space-y-3">
@@ -300,7 +368,7 @@ export default function MapPage() {
               <Separator className="my-6" />
               <div className="text-right">
                 <p className="text-lg font-semibold">
-                  Total: <span className="text-primary">Rs {calculateTotalPrice().toFixed(2)}</span>
+                  Overall Total: <span className="text-primary">Rs {calculateTotalPrice().toFixed(2)}</span>
                 </p>
               </div>
             </>
@@ -316,3 +384,5 @@ export default function MapPage() {
     </>
   );
 }
+
+    
