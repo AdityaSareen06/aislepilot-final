@@ -3,24 +3,28 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+// import Image from 'next/image'; // Removed as no longer used
 import { CategorizedDisplay } from '@/components/categorized-display';
 import type { CategorizeItemsOutput } from '@/ai/flows/categorize-items';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, MapPin, Loader2, ScanLine, ShoppingCart, Plus, Minus, CreditCard } from 'lucide-react';
+import { ArrowLeft, Loader2, ScanLine, Plus, Minus, CreditCard } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { LOCAL_STORAGE_KEYS } from '@/lib/constants';
 import {
   Dialog,
-  DialogClose,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -205,9 +209,8 @@ export default function MapPage() {
 
   const backButtonElement = (
     <Link href="/plan" passHref>
-      <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md transition-shadow">
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back
+      <Button variant="outline" size="icon" className="shadow-sm hover:shadow-md transition-shadow">
+        <ArrowLeft className="h-4 w-4" />
       </Button>
     </Link>
   );
@@ -216,24 +219,18 @@ export default function MapPage() {
     return (
       <>
         <main className="flex-grow container mx-auto px-4 md:px-6 py-8 flex flex-col items-center justify-center">
-          <div className="mb-6 w-full max-w-2xl mx-auto self-start"> 
-             {/* Back button is now part of CategorizedDisplay for sticky header */}
-          </div>
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4 mt-8" />
           <p className="text-muted-foreground">Loading map and checklist...</p>
         </main>
-        <footer className="py-6 text-center text-sm text-muted-foreground">
-          <p>&copy; {currentYear || new Date().getFullYear()} AislePilot. Happy Shopping!</p>
-        </footer>
       </>
     );
   }
 
   return (
     <>
-      <main className="flex-grow container mx-auto px-4 md:px-6 pt-8">
+      <main className="flex-grow container mx-auto px-4 md:px-6 pt-8 pb-24">
         
-        <div className="sticky top-0 z-20 bg-background py-2 shadow-md -mx-4 md:-mx-6 px-4 md:px-6">
+        <div className="sticky top-0 z-20 py-2 shadow-md -mx-4 md:-mx-6 px-4 md:px-6">
           <CategorizedDisplay
             categorizedList={categorizedList}
             checkedItems={checkedItems}
@@ -243,143 +240,142 @@ export default function MapPage() {
           />
         </div>
         
-        <Separator className="my-8" />
-
-        <section className="mb-8 p-4 sm:p-6 border bg-card rounded-lg shadow-lg">
-          <h2 className="text-xl sm:text-2xl font-semibold font-headline mb-4 flex items-center">
-            <MapPin className="mr-2 h-6 w-6 text-primary" />
-            Store Layout
-          </h2>
-          <div className="bg-muted rounded-md overflow-hidden border">
-            <Image
-              src="https://placehold.co/800x600.png"
-              alt="Store Map Placeholder"
-              width={800}
-              height={600}
-              className="w-full h-auto object-contain"
-              data-ai-hint="store layout supermarket plan"
-              priority
-            />
+        <section className="my-8">
+          <div className="rounded-md overflow-hidden border h-[500px]">
+            <iframe
+              src="https://maps.google.com/maps?q=directions%20from%20Times%20Square%2C%20New%20York%20to%20Empire%20State%20Building%2C%20New%20York&output=embed"
+              width="100%"
+              height="100%"
+              style={{ border: 0 }}
+              allowFullScreen
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              title="Google Maps Route"
+              data-ai-hint="city street map"
+            ></iframe>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">Placeholder store map. Actual layout may vary.</p>
+          <p className="text-xs text-muted-foreground mt-2 text-center">Map data © Google. Route for demonstration purposes.</p>
         </section>
 
-        <Separator className="my-8" />
-
-        <Card className="mb-8 p-4 sm:p-6 shadow-lg">
-          <CardContent className="p-0">
-            <div className="flex flex-row justify-between items-center gap-4">
-              <div className="flex items-center">
-                <CreditCard className="mr-3 h-7 w-7 text-primary" />
-                <div>
-                  <p className="text-sm text-muted-foreground">Current Cart Total</p>
-                  <p className="text-2xl font-semibold font-headline text-primary">
-                    Rs {calculateTotalPrice().toFixed(2)}
-                  </p>
-                </div>
-              </div>
-              <Dialog onOpenChange={(open) => { if (open) requestCameraPermission(); else if (videoRef.current && videoRef.current.srcObject) { const stream = videoRef.current.srcObject as MediaStream; stream.getTracks().forEach(track => track.stop()); videoRef.current.srcObject = null; setHasCameraPermission(null); } }}>
-                <DialogTrigger asChild>
-                  <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md transition-shadow">
-                    <ScanLine className="mr-2 h-4 w-4" />
-                    Scan Barcode
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[425px]">
-                  <DialogHeader>
-                    <DialogTitle>Barcode Scanner</DialogTitle>
-                    <DialogDescription>
-                      Point your camera at a barcode to scan it.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="py-4">
-                    <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
-                    {hasCameraPermission === false && (
-                      <Alert variant="destructive" className="mt-4">
-                        <AlertTitle>Camera Access Denied</AlertTitle>
-                        <AlertDescription>
-                          Please enable camera permissions in your browser settings to use the scanner. You might need to refresh the page after enabling.
-                        </AlertDescription>
-                      </Alert>
-                    )}
-                    {hasCameraPermission === null && <p className="text-muted-foreground text-sm text-center mt-2">Requesting camera access...</p>}
+        <div className="sticky bottom-0 z-30 pt-4 -mx-4 md:-mx-6 px-4 md:px-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_-2px_4px_-2px_rgba(0,0,0,0.1)]">
+          <Card className="shadow-none border-0 sm:border sm:shadow-lg">
+            <CardContent className="p-4 sm:p-6">
+              <div className="flex flex-row justify-between items-center gap-2">
+                <div className="flex items-center">
+                  <CreditCard className="mr-3 h-7 w-7 text-primary" />
+                  <div>
+                    <p className="text-sm text-muted-foreground">Current Cart Total</p>
+                    <p className="text-2xl font-semibold font-headline text-primary">
+                      Rs {calculateTotalPrice().toFixed(2)}
+                    </p>
                   </div>
-                </DialogContent>
-              </Dialog>
-            </div>
-          </CardContent>
-        </Card>
-        
-        <Separator className="my-8" />
-
-        <section className="mb-8 p-4 sm:p-6 border bg-card rounded-lg shadow-lg">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl sm:text-2xl font-semibold font-headline flex items-center">
-              <ShoppingCart className="mr-2 h-6 w-6 text-primary" />
-              Shopping Cart Items
-            </h2>
-          </div>
-
-          {completedItems.length > 0 ? (
-            <>
-              <ul className="space-y-3">
-                {completedItems.map(item => {
-                  const quantity = itemQuantities[item] || 1;
-                  const subtotal = quantity * ITEM_PRICE_RS;
-                  return (
-                    <li 
-                      key={item} 
-                      className="text-base p-3 bg-muted/60 rounded-md shadow-sm border border-input flex flex-col sm:flex-row sm:items-center sm:justify-between"
-                    >
-                      <span className="font-medium flex-grow mb-2 sm:mb-0">{item}</span>
-                      <div className="flex items-center justify-between sm:justify-end gap-2">
-                        <div className="flex items-center gap-2">
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7" 
-                            onClick={() => handleDecreaseQuantity(item)}
-                            disabled={quantity <= 1}
-                            aria-label={`Decrease quantity of ${item}`}
-                          >
-                            <Minus className="h-4 w-4" />
-                          </Button>
-                          <span className="w-6 text-center font-medium">{quantity}</span>
-                          <Button 
-                            variant="outline" 
-                            size="icon" 
-                            className="h-7 w-7"
-                            onClick={() => handleIncreaseQuantity(item)}
-                            aria-label={`Increase quantity of ${item}`}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                        <span className="text-sm text-muted-foreground w-20 text-right">
-                          Rs {subtotal.toFixed(2)}
-                        </span>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ul>
-              <Separator className="my-6" />
-              <div className="text-right">
-                <p className="text-lg font-semibold">
-                  Overall Total: <span className="text-primary">Rs {calculateTotalPrice().toFixed(2)}</span>
-                </p>
+                </div>
+                <Dialog onOpenChange={(open) => { if (open) requestCameraPermission(); else if (videoRef.current && videoRef.current.srcObject) { const stream = videoRef.current.srcObject as MediaStream; stream.getTracks().forEach(track => track.stop()); videoRef.current.srcObject = null; setHasCameraPermission(null); } }}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="shadow-sm hover:shadow-md transition-shadow">
+                      <ScanLine className="mr-2 h-4 w-4" />
+                      Scan
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="sm:max-w-[425px]">
+                    <DialogHeader>
+                      <DialogTitle>Barcode Scanner</DialogTitle>
+                      <DialogDescription>
+                        Point your camera at a barcode to scan it.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="py-4">
+                      <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
+                      {hasCameraPermission === false && (
+                        <Alert variant="destructive" className="mt-4">
+                          <AlertTitle>Camera Access Denied</AlertTitle>
+                          <AlertDescription>
+                            Please enable camera permissions in your browser settings to use the scanner. You might need to refresh the page after enabling.
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      {hasCameraPermission === null && <p className="text-muted-foreground text-sm text-center mt-2">Requesting camera access...</p>}
+                    </div>
+                  </DialogContent>
+                </Dialog>
               </div>
-            </>
-          ) : (
-            <p className="text-muted-foreground italic">No items checked off yet. Start shopping!</p>
-          )}
-        </section>
 
+              <Separator className="my-4" />
+              
+              <Accordion type="single" collapsible className="w-full" defaultValue="cart-items">
+                <AccordionItem value="cart-items" className="border-b-0">
+                  <AccordionTrigger className="text-xl sm:text-2xl font-semibold font-headline hover:no-underline">
+                    Shopping Cart Items
+                  </AccordionTrigger>
+                  <AccordionContent className="pt-4">
+                    {completedItems.length > 0 ? (
+                      <>
+                        <ul className="space-y-3 max-h-60 overflow-y-auto pr-2">
+                          {completedItems.map(item => {
+                            const quantity = itemQuantities[item] || 1;
+                            const subtotal = quantity * ITEM_PRICE_RS;
+                            return (
+                              <li 
+                                key={item} 
+                                className="text-base p-3 bg-muted/60 rounded-md shadow-sm border border-input flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                              >
+                                <span className="font-medium flex-grow mb-2 sm:mb-0">{item}</span>
+                                <div className="flex items-center justify-between sm:justify-end gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <Button 
+                                      variant="outline" 
+                                      size="icon" 
+                                      className="h-7 w-7" 
+                                      onClick={() => handleDecreaseQuantity(item)}
+                                      disabled={quantity <= 1}
+                                      aria-label={`Decrease quantity of ${item}`}
+                                    >
+                                      <Minus className="h-4 w-4" />
+                                    </Button>
+                                    <span className="w-6 text-center font-medium">{quantity}</span>
+                                    <Button 
+                                      variant="outline" 
+                                      size="icon" 
+                                      className="h-7 w-7"
+                                      onClick={() => handleIncreaseQuantity(item)}
+                                      aria-label={`Increase quantity of ${item}`}
+                                    >
+                                      <Plus className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                  <span className="text-sm text-muted-foreground w-20 text-right">
+                                    Rs {subtotal.toFixed(2)}
+                                  </span>
+                                </div>
+                              </li>
+                            );
+                          })}
+                        </ul>
+                        <Separator className="my-6" />
+                        <div className="text-right">
+                          <p className="text-lg font-semibold">
+                            Overall Total: <span className="text-primary">Rs {calculateTotalPrice().toFixed(2)}</span>
+                          </p>
+                        </div>
+                      </>
+                    ) : (
+                      <p className="text-muted-foreground italic">No items checked off yet. Start shopping!</p>
+                    )}
+                  </AccordionContent>
+                </AccordionItem>
+              </Accordion>
+            </CardContent>
+          </Card>
+        </div>
+        
       </main>
-      <footer className="py-6 text-center text-sm text-muted-foreground">
-        <p>&copy; {currentYear || new Date().getFullYear()} AislePilot. Happy Shopping!</p>
-      </footer>
     </>
   );
 }
     
+
+    
+
+
+
+
