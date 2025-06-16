@@ -3,12 +3,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
-// import Image from 'next/image'; // Removed as no longer used
 import { CategorizedDisplay } from '@/components/categorized-display';
 import type { CategorizeItemsOutput } from '@/ai/flows/categorize-items';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { ArrowLeft, Loader2, ScanLine, Plus, Minus, CreditCard } from 'lucide-react';
+import { ArrowLeft, Loader2, ScanLine, Plus, Minus } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { LOCAL_STORAGE_KEYS } from '@/lib/constants';
 import {
@@ -36,7 +35,7 @@ export default function MapPage() {
   const [checkedItems, setCheckedItems] = useState<Record<string, boolean>>({});
   const [itemQuantities, setItemQuantities] = useState<Record<string, number>>({});
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [currentYear, setCurrentYear] = useState<number | null>(null);
+  const [_currentYear, setCurrentYear] = useState<number | null>(null); // _ to avoid lint error
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const { toast } = useToast();
@@ -218,7 +217,7 @@ export default function MapPage() {
   if (isLoading && !categorizedList) {
     return (
       <>
-        <main className="flex-grow container mx-auto px-4 md:px-6 py-8 flex flex-col items-center justify-center">
+        <main className="flex-grow flex flex-col items-center justify-center">
           <Loader2 className="h-12 w-12 animate-spin text-primary mb-4 mt-8" />
           <p className="text-muted-foreground">Loading map and checklist...</p>
         </main>
@@ -228,9 +227,24 @@ export default function MapPage() {
 
   return (
     <>
-      <main className="flex-grow container mx-auto px-4 md:px-6 pt-8 pb-24">
+      <main className="relative flex-grow flex flex-col overflow-hidden">
         
-        <div className="sticky top-0 z-20 py-2 shadow-md -mx-4 md:-mx-6 px-4 md:px-6">
+        {/* Google Map Background Layer */}
+        <div className="absolute inset-0 z-0">
+          <iframe
+            src="https://maps.google.com/maps?q=directions%20from%20Times%20Square%2C%20New%20York%20to%20Empire%20State%20Building%2C%20New%20York&output=embed"
+            className="w-full h-full"
+            style={{ border: 0 }}
+            allowFullScreen
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            title="Google Maps Route"
+            data-ai-hint="city street map"
+          ></iframe>
+        </div>
+
+        {/* Top Sticky Header (Carousel) */}
+        <div className="sticky top-0 z-20 py-2 px-4 md:px-6">
           <CategorizedDisplay
             categorizedList={categorizedList}
             checkedItems={checkedItems}
@@ -240,29 +254,16 @@ export default function MapPage() {
           />
         </div>
         
-        <section className="my-8">
-          <div className="rounded-md overflow-hidden border h-[500px]">
-            <iframe
-              src="https://maps.google.com/maps?q=directions%20from%20Times%20Square%2C%20New%20York%20to%20Empire%20State%20Building%2C%20New%20York&output=embed"
-              width="100%"
-              height="100%"
-              style={{ border: 0 }}
-              allowFullScreen
-              loading="lazy"
-              referrerPolicy="no-referrer-when-downgrade"
-              title="Google Maps Route"
-              data-ai-hint="city street map"
-            ></iframe>
-          </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">Map data © Google. Route for demonstration purposes.</p>
-        </section>
+        {/* Spacer to allow map to be scrollable "under" the sticky elements */}
+        {/* This div ensures the bottom sticky element is pushed down correctly. */}
+        <div className="flex-grow"></div>
 
-        <div className="sticky bottom-0 z-30 pt-4 -mx-4 md:-mx-6 px-4 md:px-6 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1),0_-2px_4px_-2px_rgba(0,0,0,0.1)]">
-          <Card className="shadow-none border-0 sm:border sm:shadow-lg">
+        {/* Bottom Sticky Footer (Cart Card and Map Caption) */}
+        <div className="sticky bottom-0 z-30 pt-4 px-4 md:px-6">
+          <Card className="shadow-none border-0 sm:border">
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-row justify-between items-center gap-2">
                 <div className="flex items-center">
-                  <CreditCard className="mr-3 h-7 w-7 text-primary" />
                   <div>
                     <p className="text-sm text-muted-foreground">Current Cart Total</p>
                     <p className="text-2xl font-semibold font-headline text-primary">
@@ -366,6 +367,7 @@ export default function MapPage() {
               </Accordion>
             </CardContent>
           </Card>
+          <p className="text-xs text-muted-foreground mt-2 text-center pb-2">Map data © Google. Route for demonstration purposes.</p>
         </div>
         
       </main>
@@ -373,9 +375,3 @@ export default function MapPage() {
   );
 }
     
-
-    
-
-
-
-
