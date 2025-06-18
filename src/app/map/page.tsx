@@ -196,7 +196,7 @@ export default function MapPage() {
     <main className="relative flex-grow flex flex-col overflow-hidden">
         <div className="absolute inset-0 z-0">
           <iframe
-            src="https://maps.google.com/maps?q=directions%20from%20Times%20Square%2C%20New%20York%20to%20Empire%20State%20Building%2C%20New%20York&output=embed"
+            src="https://maps.google.com/maps?q=Walmart%2C%20Dunvale%2C%20Houston&output=embed"
             className="w-full h-full"
             style={{ border: 0 }}
             allowFullScreen
@@ -221,7 +221,7 @@ export default function MapPage() {
         <div className="flex-grow"></div>
 
         <div className="sticky bottom-0 z-30 pt-4 px-4 md:px-6">
-          <Card className="shadow-none border-0 sm:border">
+          <Card className="shadow-lg">
             <CardContent className="p-4 sm:p-6">
               <div className="flex flex-row justify-between items-center gap-2">
                 <div className="flex items-center">
@@ -239,7 +239,7 @@ export default function MapPage() {
                       Scan
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px]">
+                  <DialogContent className="sm:max-w-[425px] bg-background/60 dark:bg-background/50 backdrop-blur-md border-border/30 shadow-xl">
                     <DialogHeader> <DialogTitle>Barcode Scanner</DialogTitle> <DialogDescription> Point camera at a barcode.</DialogDescription> </DialogHeader>
                     <div className="py-4">
                       <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
@@ -249,11 +249,11 @@ export default function MapPage() {
                   </DialogContent>
                 </Dialog>
               </div>
-              <Separator className="my-4" />
+              <Separator className="my-2" />
               <Accordion type="single" collapsible className="w-full" defaultValue="cart-items">
                 <AccordionItem value="cart-items" className="border-b-0">
                   <AccordionTrigger className="text-xl sm:text-2xl font-semibold font-headline hover:no-underline"> Shopping Cart Items </AccordionTrigger>
-                  <AccordionContent className="pt-4">
+                  <AccordionContent className="pt-2">
                     {completedItemsInCart.length > 0 ? (
                       <>
                         <ul className="space-y-3 max-h-60 overflow-y-auto pr-2">
