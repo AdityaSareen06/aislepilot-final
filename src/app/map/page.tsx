@@ -3,8 +3,9 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Link from 'next/link';
+import { GoogleMap, useJsApiLoader, Polyline, Marker, OverlayView } from '@react-google-maps/api';
 import { CategorizedDisplay } from '@/components/categorized-display';
-import type { CategorizeItemsOutput, CategorizeItemsInput } from '@/ai/flows/categorize-items'; // CategorizeItemsInput might not be needed here
+import type { CategorizeItemsOutput } from '@/ai/flows/categorize-items';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowLeft, Loader2, ScanLine, Plus, Minus } from 'lucide-react';
@@ -26,9 +27,46 @@ import {
 } from "@/components/ui/accordion";
 import { useToast } from '@/hooks/use-toast';
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-
+import { findOptimalPath } from '@/lib/pathfinding';
+import { aisleToPointName, points } from '@/lib/store-graph';
+import type { PointName } from '@/lib/store-graph';
 
 const ITEM_PRICE_RS = 10;
+
+const mapContainerStyle = {
+  width: '100%',
+  height: '100%',
+};
+
+const mapCenter = {
+  lat: 29.7355,
+  lng: -95.5117,
+};
+
+const mapOptions = {
+  disableDefaultUI: true,
+  zoomControl: true,
+  styles: [
+    { elementType: "geometry", stylers: [{ color: "#f5f5f5" }] },
+    { elementType: "labels.icon", stylers: [{ visibility: "off" }] },
+    { elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+    { elementType: "labels.text.stroke", stylers: [{ color: "#f5f5f5" }] },
+    { featureType: "administrative.land_parcel", elementType: "labels.text.fill", stylers: [{ color: "#bdbdbd" }] },
+    { featureType: "poi", elementType: "geometry", stylers: [{ color: "#eeeeee" }] },
+    { featureType: "poi", elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+    { featureType: "poi.park", elementType: "geometry", stylers: [{ color: "#e5e5e5" }] },
+    { featureType: "poi.park", elementType: "labels.text.fill", stylers: [{ color: "#9e9e9e" }] },
+    { featureType: "road", elementType: "geometry", stylers: [{ color: "#ffffff" }] },
+    { featureType: "road.arterial", elementType: "labels.text.fill", stylers: [{ color: "#757575" }] },
+    { featureType: "road.highway", elementType: "geometry", stylers: [{ color: "#dadada" }] },
+    { featureType: "road.highway", elementType: "labels.text.fill", stylers: [{ color: "#616161" }] },
+    { featureType: "road.local", elementType: "labels.text.fill", stylers: [{ color: "#9e9e9e" }] },
+    { featureType: "transit.line", elementType: "geometry", stylers: [{ color: "#e5e5e5" }] },
+    { featureType: "transit.station", elementType: "geometry", stylers: [{ color: "#eeeeee" }] },
+    { featureType: "water", elementType: "geometry", stylers: [{ color: "#c9c9c9" }] },
+    { featureType: "water", elementType: "labels.text.fill", stylers: [{ color: "#9e9e9e" }] },
+  ],
+};
 
 export default function MapPage() {
   const [displayListForMap, setDisplayListForMap] = useState<CategorizeItemsOutput | null>(null);
@@ -39,7 +77,18 @@ export default function MapPage() {
   const [_currentYear, setCurrentYear] = useState<number | null>(null);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  
+  // Pathfinding states
+  const [shoppingPath, setShoppingPath] = useState<google.maps.LatLngLiteral[]>([]);
+  const [pathSegments, setPathSegments] = useState<google.maps.LatLngLiteral[][]>([]);
+  const [orderedAisles, setOrderedAisles] = useState<PointName[]>([]);
+  const [currentSegmentIndex, setCurrentSegmentIndex] = useState(0);
+
   const { toast } = useToast();
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "",
+  });
 
   useEffect(() => {
     setCurrentYear(new Date().getFullYear());
@@ -71,6 +120,8 @@ export default function MapPage() {
 
     if (categorizedListFromAI && categorizedListFromAI.categorizedAisles) {
       const processedListForMap: CategorizeItemsOutput = { categorizedAisles: [] };
+      const requiredAislesForPath = new Set<string>();
+
       categorizedListFromAI.categorizedAisles.forEach(aisle => {
         const itemsForThisAisleOnMap = aisle.items.filter(item => {
           return !item.isSuggestion || localUserAddedSuggestions.has(item.name);
@@ -79,11 +130,36 @@ export default function MapPage() {
         if (itemsForThisAisleOnMap.length > 0) {
           processedListForMap.categorizedAisles.push({
             aisleName: aisle.aisleName,
-            items: itemsForThisAisleOnMap, // items still {name, isSuggestion} for AisleCard consistency
+            items: itemsForThisAisleOnMap,
           });
+          requiredAislesForPath.add(aisle.aisleName);
         }
       });
-      setDisplayListForMap(processedListForMap);
+      
+      const requiredPoints = Array.from(requiredAislesForPath)
+        .map(aisle => aisleToPointName[aisle.toLowerCase()])
+        .filter(point => point);
+
+      const uniquePoints = Array.from(new Set(requiredPoints));
+
+      if (uniquePoints.length > 0) {
+        const { pathCoords, visitOrder, pathSegmentsCoords } = findOptimalPath(uniquePoints);
+        setShoppingPath(pathCoords);
+        setPathSegments(pathSegmentsCoords);
+        setOrderedAisles(visitOrder);
+        
+        // Sort the display list based on the optimal path
+        const shoppingOrder = visitOrder.map(pointName => points[pointName].aisle).filter(Boolean);
+        const sortedAisles = [...processedListForMap.categorizedAisles].sort((a, b) => {
+          return shoppingOrder.indexOf(a.aisleName) - shoppingOrder.indexOf(b.aisleName);
+        });
+        setDisplayListForMap({ categorizedAisles: sortedAisles });
+
+      } else {
+        setDisplayListForMap(processedListForMap); // Display empty or whatever was processed
+        setShoppingPath([]);
+      }
+
     } else {
       setDisplayListForMap({ categorizedAisles: [] });
     }
@@ -92,6 +168,41 @@ export default function MapPage() {
     setItemQuantities(quantitiesFromStorage);
     setIsLoading(false); 
   }, [toast]);
+
+  // Effect to update the current path segment based on checked items
+  useEffect(() => {
+    if (!orderedAisles.length || !displayListForMap) return;
+
+    // Get the sequence of aisles we need to shop at (excluding start/end points)
+    const shoppingAisles = orderedAisles
+      .slice(1, -1) // Remove J (start) and J (end)
+      .map(pointName => points[pointName].aisle?.toLowerCase());
+
+    let nextIncompleteAisleIdx = -1;
+
+    for (let i = 0; i < shoppingAisles.length; i++) {
+      const aisleNameLower = shoppingAisles[i];
+      const aisleData = displayListForMap.categorizedAisles.find(a => a.aisleName.toLowerCase() === aisleNameLower);
+      
+      if (!aisleData) continue;
+
+      const allItemsInAisleChecked = aisleData.items.every(item => checkedItems[item.name]);
+
+      if (!allItemsInAisleChecked) {
+        nextIncompleteAisleIdx = i;
+        break;
+      }
+    }
+    
+    if (nextIncompleteAisleIdx === -1) {
+      // All items are checked, highlight the last segment (path to checkout)
+      setCurrentSegmentIndex(pathSegments.length - 1);
+    } else {
+      setCurrentSegmentIndex(nextIncompleteAisleIdx);
+    }
+
+  }, [checkedItems, orderedAisles, displayListForMap, pathSegments.length]);
+
 
   // Persist checkedItems and itemQuantities (userAddedSuggestions is persisted on plan page)
   useEffect(() => {
@@ -182,6 +293,74 @@ export default function MapPage() {
       </Button>
     </Link>
   );
+  
+  const renderMap = () => {
+    if (loadError) return <div className="w-full h-full flex items-center justify-center bg-destructive text-destructive-foreground">Error loading maps. Please check your API key.</div>;
+    if (!isLoaded) return <div className="w-full h-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
+
+    const highlightedSegment = pathSegments[currentSegmentIndex];
+    const upcomingAislePointName = orderedAisles[currentSegmentIndex + 1];
+    const markerPosition = upcomingAislePointName ? points[upcomingAislePointName].coords : null;
+    const upcomingAisleInfo = upcomingAislePointName ? points[upcomingAislePointName] : null;
+
+
+    return (
+      <GoogleMap
+        mapContainerStyle={mapContainerStyle}
+        center={mapCenter}
+        zoom={18}
+        options={mapOptions}
+      >
+        {shoppingPath.length > 0 && (
+          <>
+            {/* Base path */}
+            <Polyline
+              path={shoppingPath}
+              options={{
+                strokeColor: '#757575', // A muted color for the base path
+                strokeOpacity: 0.6,
+                strokeWeight: 6,
+              }}
+            />
+            {/* Highlighted current segment */}
+            {highlightedSegment && (
+              <Polyline
+                path={highlightedSegment}
+                options={{
+                  strokeColor: '#4285F4', // A bright, primary color
+                  strokeOpacity: 0.9,
+                  strokeWeight: 8,
+                  zIndex: 1,
+                }}
+              />
+            )}
+            {/* Marker for the upcoming aisle */}
+            {markerPosition && (
+               <Marker position={markerPosition} />
+            )}
+            {/* Label for the upcoming aisle */}
+            {markerPosition && upcomingAisleInfo?.aisle && (
+              <OverlayView
+                position={markerPosition}
+                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+                getPixelPositionOffset={(width, height) => ({
+                  x: -(width / 2),
+                  y: -(height + 10), // Adjust this value to position the label correctly above the marker
+                })}
+              >
+                <div className="bg-background p-2 rounded-lg shadow-lg border border-border">
+                  <p className="font-semibold text-primary text-sm whitespace-nowrap">
+                    {upcomingAisleInfo.aisle}
+                  </p>
+                </div>
+              </OverlayView>
+            )}
+          </>
+        )}
+      </GoogleMap>
+    );
+  };
+
 
   if (isLoading && !displayListForMap) {
     return (
@@ -195,24 +374,15 @@ export default function MapPage() {
   return (
     <main className="relative flex-grow flex flex-col overflow-hidden">
         <div className="absolute inset-0 z-0">
-          <iframe
-            src="https://maps.google.com/maps?q=Walmart%2C%20Dunvale%2C%20Houston&output=embed"
-            className="w-full h-full"
-            style={{ border: 0 }}
-            allowFullScreen
-            loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
-            title="Google Maps Route"
-            data-ai-hint="city street map"
-          ></iframe>
+          {renderMap()}
         </div>
 
         <div className="sticky top-0 z-20 py-2 px-4 md:px-6">
           <CategorizedDisplay
-            categorizedList={displayListForMap} // Contains only items to be displayed on map
+            categorizedList={displayListForMap}
             checkedItems={checkedItems}
-            onItemInteraction={handleItemInteractionOnMap} // All items here are effectively non-suggestions for interaction purposes
-            userAddedSuggestions={userAddedSuggestions} // Pass this to correctly render items that were suggestions
+            onItemInteraction={handleItemInteractionOnMap}
+            userAddedSuggestions={userAddedSuggestions}
             displayMode="carousel"
             backButton={backButtonElement}
           />
@@ -239,7 +409,7 @@ export default function MapPage() {
                       Scan
                     </Button>
                   </DialogTrigger>
-                  <DialogContent className="sm:max-w-[425px] bg-background/60 dark:bg-background/50 backdrop-blur-md border-border/30 shadow-xl">
+                  <DialogContent className="sm:max-w-[425px] bg-background/90 backdrop-blur-sm border-border/30 shadow-xl">
                     <DialogHeader> <DialogTitle>Barcode Scanner</DialogTitle> <DialogDescription> Point camera at a barcode.</DialogDescription> </DialogHeader>
                     <div className="py-4">
                       <video ref={videoRef} className="w-full aspect-video rounded-md bg-muted" autoPlay playsInline muted />
