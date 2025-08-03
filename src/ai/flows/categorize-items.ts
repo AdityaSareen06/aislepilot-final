@@ -1,5 +1,4 @@
-
-'use server';
+"use server";
 /**
  * @fileOverview A grocery item categorization and suggestion AI agent.
  *
@@ -8,41 +7,59 @@
  * - CategorizeItemsOutput - The return type for the categorizeItems function, including categorized aisles with user items and AI-suggested items.
  */
 
-import {ai} from '@/ai/genkit';
-import {z} from 'genkit';
+import { ai } from "@/ai/genkit";
+import { z } from "genkit";
 
 const CategorizeItemsInputSchema = z.object({
   items: z
     .string()
-    .describe('A comma separated list of grocery items to categorize and get suggestions for.'),
+    .describe(
+      "A list of grocery items to categorize and get suggestions for. If the list includes items that the user has specified as a dish to be made, add the ingredients to the list. These ingredients are to be considered as part of the user's original input, not an AI suggestion.",
+    ),
 });
 export type CategorizeItemsInput = z.infer<typeof CategorizeItemsInputSchema>;
 
 const ItemSchema = z.object({
   name: z.string().describe("The name of the grocery item."),
-  isSuggestion: z.boolean().describe("True if this item is an AI suggestion, false if it was part of the user's original input.")
+  isSuggestion: z
+    .boolean()
+    .describe(
+      "True if this item is an AI suggestion, false if it was part of the user's original input.",
+    ),
 });
 
 const AisleSchema = z.object({
   aisleName: z.string().describe("The name of the supermarket aisle."),
-  items: z.array(ItemSchema).describe("A list of grocery items (user's and AI-suggested) found in this aisle.")
+  items: z
+    .array(ItemSchema)
+    .describe(
+      "A list of grocery items (user's and AI-suggested) found in this aisle.",
+    ),
 });
 
-const CategorizeItemsOutputSchema = z.object({
-  categorizedAisles: z.array(AisleSchema)
-    .describe('A list of aisles, each containing a list of grocery items. Suggested items are included here, flagged with "isSuggestion: true".'),
-}).describe('Contains a list of aisles with their categorized grocery items, including AI suggestions.');
+const CategorizeItemsOutputSchema = z
+  .object({
+    categorizedAisles: z
+      .array(AisleSchema)
+      .describe(
+        'A list of aisles, each containing a list of grocery items. Suggested items are included here, flagged with "isSuggestion: true".',
+      ),
+  })
+  .describe(
+    "Contains a list of aisles with their categorized grocery items, including AI suggestions.",
+  );
 export type CategorizeItemsOutput = z.infer<typeof CategorizeItemsOutputSchema>;
 
-
-export async function categorizeItems(input: CategorizeItemsInput): Promise<CategorizeItemsOutput> {
+export async function categorizeItems(
+  input: CategorizeItemsInput,
+): Promise<CategorizeItemsOutput> {
   return categorizeItemsFlow(input);
 }
 
 const prompt = ai.definePrompt({
-  name: 'categorizeAndSuggestItemsPrompt',
-  input: {schema: CategorizeItemsInputSchema},
-  output: {schema: CategorizeItemsOutputSchema},
+  name: "categorizeAndSuggestItemsPrompt",
+  input: { schema: CategorizeItemsInputSchema },
+  output: { schema: CategorizeItemsOutputSchema },
   prompt: `You are a grocery shopping expert.
 1. Categorize the provided list of grocery items into supermarket aisles. The aisles must be of the following: Garden, Grocery, Clothing, Entertainment, Pet Care, Hardware and Bakery.
 2. Based on the provided items, suggest exactly 3 other related items that a user might have forgotten.
@@ -95,16 +112,16 @@ User's Items: {{{items}}}
 
 const categorizeItemsFlow = ai.defineFlow(
   {
-    name: 'categorizeItemsFlow',
+    name: "categorizeItemsFlow",
     inputSchema: CategorizeItemsInputSchema,
     outputSchema: CategorizeItemsOutputSchema,
   },
-  async input => {
-    const {output} = await prompt(input);
+  async (input) => {
+    const { output } = await prompt(input);
     // Ensure categorizedAisles is an empty array if AI returns undefined or null for empty inputs.
     if (!output || !output.categorizedAisles) {
       return { categorizedAisles: [] };
     }
     return output;
-  }
+  },
 );
