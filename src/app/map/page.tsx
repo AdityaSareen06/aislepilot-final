@@ -368,6 +368,7 @@ export default function MapPage() {
       });
     });
     return Array.from(itemNames).sort();
+
   };
 
   const completedItemsInCart = getCompletedItemsForCart();
@@ -378,6 +379,8 @@ export default function MapPage() {
       const price = getItemPrice(itemName);
       return total + (quantity * price);
     }, 0);
+
+
   };
   
   const handleCheckoutOpen = (open: boolean) => {
@@ -404,6 +407,7 @@ export default function MapPage() {
       </div>
     );
   }
+
 
   if (!isLoaded) {
     return (
@@ -487,6 +491,7 @@ export default function MapPage() {
     </GoogleMap>
   );
 };
+
 
 
 
