@@ -397,71 +397,97 @@ export default function MapPage() {
   );
   
   const renderMap = () => {
-    if (loadError) return <div className="w-full h-full flex items-center justify-center bg-destructive text-destructive-foreground">Error loading maps. Please check your API key.</div>;
-    if (!isLoaded) return <div className="w-full h-full flex items-center justify-center"><Loader2 className="h-8 w-8 animate-spin" /></div>;
-
-    const highlightedSegment = pathSegments[currentSegmentIndex];
-    const upcomingAislePointName = orderedAisles[currentSegmentIndex + 1];
-    const markerPosition = upcomingAislePointName ? points[upcomingAislePointName].coords : null;
-    const upcomingAisleInfo = upcomingAislePointName ? points[upcomingAislePointName] : null;
-
-
+  if (loadError) {
     return (
-      <GoogleMap
-        mapContainerStyle={mapContainerStyle}
-        center={mapCenter}
-        zoom={18}
-        options={mapOptions}
-      >
-        {shoppingPath.length > 0 && (
-          <>
-            {/* Base path */}
-            <Polyline
-              path={shoppingPath}
-              options={{
-                strokeColor: '#757575', // A muted color for the base path
-                strokeOpacity: 0.6,
-                strokeWeight: 6,
-              }}
-            />
-            {/* Highlighted current segment */}
-            {highlightedSegment && (
-              <Polyline
-                path={highlightedSegment}
-                options={{
-                  strokeColor: '#4285F4', // A bright, primary color
-                  strokeOpacity: 0.9,
-                  strokeWeight: 8,
-                  zIndex: 1,
-                }}
-              />
-            )}
-            {/* Marker for the upcoming aisle */}
-            {markerPosition && (
-               <Marker position={markerPosition} />
-            )}
-            {/* Label for the upcoming aisle */}
-            {markerPosition && upcomingAisleInfo?.aisle && (
-              <OverlayView
-                position={markerPosition}
-                mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
-                getPixelPositionOffset={(width, height) => ({
-                  x: -(width / 2),
-                  y: -(height + 10), // Adjust this value to position the label correctly above the marker
-                })}
-              >
-                <div className="bg-background p-2 rounded-lg shadow-lg border border-border w-28 text-center">
-                  <p className="font-semibold text-primary text-sm break-words">
-                    {upcomingAisleInfo.aisle}
-                  </p>
-                </div>
-              </OverlayView>
-            )}
-          </>
-        )}
-      </GoogleMap>
+      <div className="w-full h-full flex items-center justify-center bg-destructive text-destructive-foreground">
+        Error loading maps. Please check your API key.
+      </div>
     );
-  };
+  }
+
+  if (!isLoaded) {
+    return (
+      <div className="w-full h-full flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
+  // ✅ DO NOT REMOVE THIS — used for marker and label placement
+  const highlightedSegment = pathSegments[currentSegmentIndex];
+  const upcomingAislePointName = orderedAisles[currentSegmentIndex + 1];
+  const markerPosition = upcomingAislePointName
+    ? points[upcomingAislePointName].coords
+    : null;
+  const upcomingAisleInfo = upcomingAislePointName
+    ? points[upcomingAislePointName]
+    : null;
+
+  return (
+    <GoogleMap
+      mapContainerStyle={mapContainerStyle}
+      center={mapCenter}
+      zoom={18}
+      options={mapOptions}
+    >
+      {/* Render all path segments with color logic */}
+     {pathSegments.map((segment, index) => (
+  <Polyline
+    key={`base-${index}`}
+    path={segment}
+    options={{
+      strokeColor: '#cfcfcf',    // grey base
+      strokeOpacity: 0.6,
+      strokeWeight: 6,
+      zIndex: 1,
+    }}
+  />
+))}
+
+{pathSegments.map((segment, index) => {
+  if (index > currentSegmentIndex) return null;
+
+  return (
+    <Polyline
+      key={`blue-${index}`}
+      path={segment}
+      options={{
+        strokeColor: '#4285F4',  // blue top
+        strokeOpacity: 0.9,
+        strokeWeight: 8,
+        zIndex: 2,
+      }}
+    />
+  );
+})}
+
+
+      {/* Marker for the upcoming aisle */}
+      {markerPosition && (
+        <Marker position={markerPosition} />
+      )}
+
+      {/* Label for the upcoming aisle */}
+      {markerPosition && upcomingAisleInfo?.aisle && (
+        <OverlayView
+          position={markerPosition}
+          mapPaneName={OverlayView.OVERLAY_MOUSE_TARGET}
+          getPixelPositionOffset={(width, height) => ({
+            x: -(width / 2),
+            y: -(height + 10),
+          })}
+        >
+          <div className="bg-background p-2 rounded-lg shadow-lg border border-border w-28 text-center">
+            <p className="font-semibold text-primary text-sm break-words">
+              {upcomingAisleInfo.aisle}
+            </p>
+          </div>
+        </OverlayView>
+      )}
+    </GoogleMap>
+  );
+};
+
 
 
   if (isLoading && !displayListForMap) {
